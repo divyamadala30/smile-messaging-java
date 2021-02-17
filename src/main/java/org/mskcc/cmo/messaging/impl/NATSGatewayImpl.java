@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import org.apache.log4j.Logger;
 import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +46,7 @@ public class NATSGatewayImpl implements Gateway {
     private final CountDownLatch publishingShutdownLatch = new CountDownLatch(1);
     private final BlockingQueue<PublishingQueueTask> publishingQueue =
         new LinkedBlockingQueue<PublishingQueueTask>();
+    private Logger logger = Logger.getLogger(NATSGatewayImpl.class);
 
     private class PublishingQueueTask {
         String topic;
@@ -62,7 +64,10 @@ public class NATSGatewayImpl implements Gateway {
         boolean interrupted = false;
 
         NATSPublisher() throws Exception {
-            Options opts = new Options.Builder().natsConn(stanConnection.getNatsConnection()).build();
+            Options opts = new Options.Builder()
+                    .errorListener(new StreamingErrorListener())
+                    .natsConn(stanConnection.getNatsConnection())
+                    .build();
             this.sc = NatsStreaming.connect(clusterID, clientID + "-publisher", opts);
         }
 
@@ -73,16 +78,19 @@ public class NATSGatewayImpl implements Gateway {
                     PublishingQueueTask task = publishingQueue.poll(100, TimeUnit.MILLISECONDS);
                     if (task != null) {
                         String msg = gson.toJson(task.message);
-                        sc.publish(task.topic, msg.getBytes(StandardCharsets.UTF_8));
+                        try {
+                            sc.publish(task.topic, msg.getBytes(StandardCharsets.UTF_8));
+                        } catch (Exception e) {
+                            // TBD requeue?
+                            logger.error("Error publishing to topic: "
+                                    + task.topic + "\n Message: " + msg);
+                        }
                     }
                     if (interrupted && publishingQueue.isEmpty()) {
                         break;
                     }
                 } catch (InterruptedException e) {
                     interrupted = true;
-                } catch (Exception e) {
-                    // TBD requeue?
-                    System.err.printf("Error during publishing: %s\n", e.getMessage());
                 }
             }
             try {
