@@ -6,14 +6,14 @@ import io.nats.client.ErrorListener;
 import org.apache.log4j.Logger;
 
 public class StreamingErrorListener implements ErrorListener {
-    private Logger logger = Logger.getLogger(StreamingErrorListener.class);
+    private Logger LOG = Logger.getLogger(StreamingErrorListener.class);
     
     /**
      * Handles server errors
      */
     @Override
     public void errorOccurred(Connection conn, String error) {
-        logger.error("The server notified the client with: " + error);
+        LOG.error("The server notified the client with: " + error);
     }
     
     /**
@@ -21,12 +21,12 @@ public class StreamingErrorListener implements ErrorListener {
      */
     @Override
     public void exceptionOccurred(Connection conn, Exception exp) {
-        logger.error("The connection handled an exception: " + exp.getLocalizedMessage());
+        LOG.error("The connection handled an exception: " + exp.getLocalizedMessage());
     }
 
     @Override
     public void slowConsumerDetected(Connection conn, Consumer consumer) {
-        logger.error("A slow consumer dropped messages: " + consumer.getDroppedCount());
+        LOG.error("A slow consumer dropped messages: " + consumer.getDroppedCount());
 
     }
 }

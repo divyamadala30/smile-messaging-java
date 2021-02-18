@@ -46,7 +46,7 @@ public class NATSGatewayImpl implements Gateway {
     private final CountDownLatch publishingShutdownLatch = new CountDownLatch(1);
     private final BlockingQueue<PublishingQueueTask> publishingQueue =
         new LinkedBlockingQueue<PublishingQueueTask>();
-    private Logger logger = Logger.getLogger(NATSGatewayImpl.class);
+    private Logger LOG = Logger.getLogger(NATSGatewayImpl.class);
 
     private class PublishingQueueTask {
         String topic;
@@ -82,7 +82,7 @@ public class NATSGatewayImpl implements Gateway {
                             sc.publish(task.topic, msg.getBytes(StandardCharsets.UTF_8));
                         } catch (Exception e) {
                             // TBD requeue?
-                            logger.error("Error publishing to topic: "
+                            LOG.error("Error publishing to topic: "
                                     + task.topic + "\n Message: " + msg);
                         }
                     }
@@ -97,7 +97,7 @@ public class NATSGatewayImpl implements Gateway {
                 sc.close();
                 publishingShutdownLatch.countDown();
             } catch (Exception e) {
-                logger.error("Error closing streaming connection: %s\n" + e.getMessage());
+                LOG.error("Error closing streaming connection: %s\n" + e.getMessage());
             }
         }
     }
@@ -111,7 +111,7 @@ public class NATSGatewayImpl implements Gateway {
             PublishingQueueTask task = new PublishingQueueTask(topic, message);
             publishingQueue.put(task);
         } else {
-            logger.error("Shutdown initiated, not accepting publish request: \n" + message);
+            LOG.error("Shutdown initiated, not accepting publish request: \n" + message);
             throw new IllegalStateException("Shutdown initiated, not accepting anymore publish requests");
         }
     }
@@ -150,8 +150,8 @@ public class NATSGatewayImpl implements Gateway {
                         String json = new String(msg.getData(), StandardCharsets.UTF_8);
                         message = gson.fromJson(json, messageClass);
                     } catch (Exception e) {
-                        logger.error("Error deserializing NATS message: \n" + msg);
-                        logger.error("Exception: \n" + e.getMessage());
+                        LOG.error("Error deserializing NATS message: \n" + msg);
+                        LOG.error("Exception: \n" + e.getMessage());
                     }
                     if (message != null) {
                         consumer.onMessage(message);
