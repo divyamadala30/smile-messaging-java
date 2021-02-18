@@ -3,21 +3,30 @@ package org.mskcc.cmo.messaging.impl;
 import io.nats.client.Connection;
 import io.nats.client.Consumer;
 import io.nats.client.ErrorListener;
+import org.apache.log4j.Logger;
 
-class StreamingErrorListener implements ErrorListener {
+public class StreamingErrorListener implements ErrorListener {
+    private Logger logger = Logger.getLogger(StreamingErrorListener.class);
+    
+    /**
+     * Handles server errors
+     */
     @Override
     public void errorOccurred(Connection conn, String error) {
-        System.out.println("The server notificed the client with: " + error);
+        logger.error("The server notificed the client with: " + error);
     }
-
+    
+    /**
+     * Handles connection errors
+     */
     @Override
     public void exceptionOccurred(Connection conn, Exception exp) {
-        System.out.println("The connection handled an exception: " + exp.getLocalizedMessage());
+        logger.error("The connection handled an exception: " + exp.getLocalizedMessage());
     }
 
     @Override
     public void slowConsumerDetected(Connection conn, Consumer consumer) {
-        System.out.println("A slow consumer dropped messages: " + consumer.getDroppedCount());
+        logger.error("A slow consumer dropped messages: " + consumer.getDroppedCount());
 
     }
 }
