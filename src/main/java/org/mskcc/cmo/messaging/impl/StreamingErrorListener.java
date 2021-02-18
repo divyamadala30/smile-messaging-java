@@ -13,7 +13,7 @@ public class StreamingErrorListener implements ErrorListener {
      */
     @Override
     public void errorOccurred(Connection conn, String error) {
-        logger.error("The server notificed the client with: " + error);
+        logger.error("The server notified the client with: " + error);
     }
     
     /**
