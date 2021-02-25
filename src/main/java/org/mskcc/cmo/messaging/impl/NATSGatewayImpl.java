@@ -92,7 +92,8 @@ public class NATSGatewayImpl implements Gateway {
                             } catch (IOException exception) {
                                 exception.printStackTrace();
                             }
-                            LOG.error(task.topic + "\nMessage: " + msg);
+                            LOG.error("Error encountered during attempt to publish on topic: " + task.topic);
+                            LOG.debug("Message contents: " + msg);
                         }
                     }
                     if (interrupted && publishingQueue.isEmpty()) {
