@@ -1,6 +1,6 @@
 package org.mskcc.cmo.messaging;
 
-public interface Gateway {
+public interface StanGateway {
     void connect() throws Exception;
     void connect(String clusterId, String clientId, String natsUrl) throws Exception;
     boolean isConnected();

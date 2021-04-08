@@ -25,19 +25,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import javax.net.ssl.SSLContext;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mskcc.cmo.common.FileUtil;
-import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
+import org.mskcc.cmo.messaging.StanGateway;
 import org.mskcc.cmo.messaging.utils.SSLUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-public class NATSGatewayImpl implements Gateway {
+public class StanGatewayImpl implements StanGateway {
 
     // TDB set to true after all clients are updated?
     @Value("${nats.tls_channel:false}")
@@ -57,7 +56,7 @@ public class NATSGatewayImpl implements Gateway {
 
     @Autowired
     FileUtil fileUtil;
-    
+
     private File pubFailuresFile;
 
     @Autowired
@@ -78,7 +77,7 @@ public class NATSGatewayImpl implements Gateway {
     private final CountDownLatch publishingShutdownLatch = new CountDownLatch(1);
     private final BlockingQueue<PublishingQueueTask> publishingQueue =
         new LinkedBlockingQueue<PublishingQueueTask>();
-    private final Log LOG = LogFactory.getLog(NATSGatewayImpl.class);
+    private final Log LOG = LogFactory.getLog(StanGatewayImpl.class);
 
     private class PublishingQueueTask {
         String topic;
@@ -117,7 +116,7 @@ public class NATSGatewayImpl implements Gateway {
                                 fileUtil.writeToFile(pubFailuresFile,
                                         generatePublishFailureRecord(task.topic, msg));
                             } catch (IOException ex) {
-                                LOG.error("Error during attempt to log publishing failure to file: " 
+                                LOG.error("Error during attempt to log publishing failure to file: "
                                         + metadbPubFailuresFilepath, e);
                             }
                             if (e instanceof InterruptedException) {
