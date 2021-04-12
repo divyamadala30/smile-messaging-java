@@ -28,15 +28,15 @@ import java.util.concurrent.TimeoutException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mskcc.cmo.common.FileUtil;
+import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
-import org.mskcc.cmo.messaging.StanGateway;
 import org.mskcc.cmo.messaging.utils.SSLUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-public class StanGatewayImpl implements StanGateway {
+public class StanGatewayImpl implements Gateway {
 
     // TDB set to true after all clients are updated?
     @Value("${nats.tls_channel:false}")
@@ -54,8 +54,7 @@ public class StanGatewayImpl implements StanGateway {
     @Value("${metadb.publishing_failures_filepath}")
     private String metadbPubFailuresFilepath;
 
-    @Autowired
-    FileUtil fileUtil;
+    private FileUtil fileUtil;
 
     private File pubFailuresFile;
 
@@ -65,7 +64,8 @@ public class StanGatewayImpl implements StanGateway {
                 metadbPubFailuresFilepath, PUB_FAILURES_FILE_HEADER);
     }
 
-    @Autowired SSLUtils sslUtils;
+    @Autowired
+    SSLUtils sslUtils;
 
     private static final String PUB_FAILURES_FILE_HEADER = "DATE\tTOPIC\tMESSAGE\n";
     private StreamingConnection stanConnection;
@@ -159,8 +159,18 @@ public class StanGatewayImpl implements StanGateway {
     }
 
     @Override
+    public void publish(String stream, String subject, Object message) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void connect() throws Exception {
         connect(clusterId, clientId, natsURL);
+    }
+
+    @Override
+    public void connect(String natsUrl) throws Exception {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -218,6 +228,12 @@ public class StanGatewayImpl implements StanGateway {
             }, new SubscriptionOptions.Builder().durableName(topic + "-" + clientId).build());
             subscribers.put(topic, sub);
         }
+    }
+
+    @Override
+    public void subscribe(String stream, String subject, Class messageClass, MessageConsumer messageConsumer)
+            throws Exception {
+        throw new UnsupportedOperationException();
     }
 
     @Override

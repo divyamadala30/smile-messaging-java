@@ -26,15 +26,17 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mskcc.cmo.common.FileUtil;
-import org.mskcc.cmo.messaging.JSGateway;
+import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
 import org.mskcc.cmo.messaging.utils.SSLUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+@Primary
 @Component
-public class JSGatewayImpl implements JSGateway {
+public class JSGatewayImpl implements Gateway {
     @Value("${nats.tls_channel:false}")
     private boolean tlsChannel;
 
@@ -44,8 +46,7 @@ public class JSGatewayImpl implements JSGateway {
     @Value("${metadb.publishing_failures_filepath}")
     private String metadbPubFailuresFilepath;
 
-    @Autowired
-    FileUtil fileUtil;
+    private FileUtil fileUtil;
 
     private File pubFailuresFile;
 
@@ -55,7 +56,8 @@ public class JSGatewayImpl implements JSGateway {
                 metadbPubFailuresFilepath, PUB_FAILURES_FILE_HEADER);
     }
 
-    @Autowired SSLUtils sslUtils;
+    @Autowired
+    SSLUtils sslUtils;
 
     private static final String PUB_FAILURES_FILE_HEADER = "DATE\tTOPIC\tMESSAGE\n";
     private Connection natsConnection;
@@ -141,6 +143,11 @@ public class JSGatewayImpl implements JSGateway {
     }
 
     @Override
+    public void connect(String clusterId, String clientId, String natsUrl) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void connect(String natsUrl) throws Exception {
         natsConnection = Nats.connect(natsUrl);
         jsConnection = natsConnection.jetStream();
@@ -168,6 +175,11 @@ public class JSGatewayImpl implements JSGateway {
             LOG.error("Shutdown initiated, not accepting publish request: \n" + message);
             throw new IllegalStateException("Shutdown initiated, not accepting anymore publish requests");
         }
+    }
+
+    @Override
+    public void publish(String topic, Object message) throws Exception {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -201,6 +213,12 @@ public class JSGatewayImpl implements JSGateway {
     }
 
     @Override
+    public void subscribe(String topic, Class messageClass,
+            MessageConsumer messageConsumer) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void shutdown() throws Exception {
         if (!isConnected()) {
             throw new IllegalStateException("Gateway connection has not been established");
@@ -222,5 +240,4 @@ public class JSGatewayImpl implements JSGateway {
                 .append("\n");
         return builder.toString();
     }
-
 }
