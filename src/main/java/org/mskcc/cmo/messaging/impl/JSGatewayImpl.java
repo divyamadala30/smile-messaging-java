@@ -8,8 +8,12 @@ import io.nats.client.Dispatcher;
 import io.nats.client.JetStream;
 import io.nats.client.JetStreamOptions;
 import io.nats.client.JetStreamSubscription;
+import io.nats.client.Message;
 import io.nats.client.MessageHandler;
 import io.nats.client.Nats;
+import io.nats.client.api.PublishAck;
+import io.nats.client.impl.NatsMessage;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -70,7 +74,7 @@ public class JSGatewayImpl implements Gateway {
     private final CountDownLatch publishingShutdownLatch = new CountDownLatch(1);
     private final BlockingQueue<PublishingQueueTask> publishingQueue =
         new LinkedBlockingQueue<PublishingQueueTask>();
-    private final Log LOG = LogFactory.getLog(StanGatewayImpl.class);
+    private final Log LOG = LogFactory.getLog(JSGatewayImpl.class);
 
     private class PublishingQueueTask {
         String topic;
@@ -103,7 +107,11 @@ public class JSGatewayImpl implements Gateway {
                     if (task != null) {
                         String msg = mapper.writeValueAsString(task.message);
                         try {
-                            jetStreamConn.publishAsync(task.topic, msg.getBytes(StandardCharsets.UTF_8));
+                            PublishAck ack = jetStreamConn.publish(task.topic, msg.getBytes(StandardCharsets.UTF_8));
+                            if (ack.getError() != null) {
+                                fileUtil.writeToFile(pubFailuresFile,
+                                        generatePublishFailureRecord(task.topic, msg));
+                            }
                         } catch (Exception e) {
                             try {
                                 fileUtil.writeToFile(pubFailuresFile,
@@ -143,11 +151,6 @@ public class JSGatewayImpl implements Gateway {
     }
 
     @Override
-    public void connect(String clusterId, String clientId, String natsUrl) throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void connect(String natsUrl) throws Exception {
         natsConnection = Nats.connect(natsUrl);
         jsConnection = natsConnection.jetStream();
@@ -178,11 +181,6 @@ public class JSGatewayImpl implements Gateway {
     }
 
     @Override
-    public void publish(String topic, Object message) throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void subscribe(String stream, String subject, Class messageClass,
             MessageConsumer messageConsumer) throws Exception {
         if (!isConnected()) {
@@ -210,12 +208,6 @@ public class JSGatewayImpl implements Gateway {
             JetStreamSubscription sub = jsConnection.subscribe(subject, dispatcher, handler, false);
             subscribers.put(subject, sub);
         }
-    }
-
-    @Override
-    public void subscribe(String topic, Class messageClass,
-            MessageConsumer messageConsumer) throws Exception {
-        throw new UnsupportedOperationException();
     }
 
     @Override
