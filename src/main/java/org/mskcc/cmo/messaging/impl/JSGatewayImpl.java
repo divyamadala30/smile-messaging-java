@@ -54,7 +54,7 @@ public class JSGatewayImpl implements Gateway {
     private String metadbPubFailuresFilepath;
 
     private final String PUB_FAILURES_FILE_HEADER = "DATE\tTOPIC\tMESSAGE\n";
-    private final static FileUtil fileUtil = new FileUtilImpl() {};
+    private final static FileUtil fileUtil = new FileUtilImpl();
     private static File publishingLoggerFile;
 
     @Override
