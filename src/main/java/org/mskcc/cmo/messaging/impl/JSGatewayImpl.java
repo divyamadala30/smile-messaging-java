@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mskcc.cmo.common.FileUtil;
+import org.mskcc.cmo.common.impl.FileUtilImpl;
 import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
 import org.mskcc.cmo.messaging.events.NATSPublisher;
@@ -53,7 +54,7 @@ public class JSGatewayImpl implements Gateway {
     private String metadbPubFailuresFilepath;
 
     private final String PUB_FAILURES_FILE_HEADER = "DATE\tTOPIC\tMESSAGE\n";
-    private static FileUtil fileUtil;
+    private final static FileUtil fileUtil = new FileUtilImpl() {};
     private static File publishingLoggerFile;
 
     @Override
