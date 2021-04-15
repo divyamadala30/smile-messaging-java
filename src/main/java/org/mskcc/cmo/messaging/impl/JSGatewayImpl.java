@@ -5,9 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.JetStream;
+import io.nats.client.JetStreamOptions;
 import io.nats.client.JetStreamSubscription;
 import io.nats.client.Message;
 import io.nats.client.Nats;
+import io.nats.client.Options;
+import io.nats.client.api.PublishAck;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,23 +27,20 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.mskcc.cmo.common.FileUtil;
-import org.mskcc.cmo.common.impl.FileUtilImpl;
 import org.mskcc.cmo.messaging.Gateway;
 import org.mskcc.cmo.messaging.MessageConsumer;
-import org.mskcc.cmo.messaging.events.NATSPublisher;
-import org.mskcc.cmo.messaging.events.PublishingQueueTask;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class JSGatewayImpl implements Gateway {
-    private static final Log LOG = LogFactory.getLog(JSGatewayImpl.class);
-    private static final CountDownLatch PUBLISHING_SHUTDOWN_LATCH = new CountDownLatch(1);
-    private static volatile Boolean shutdownInitiated = Boolean.FALSE;
-    private static volatile BlockingQueue<PublishingQueueTask> PUBLISHING_QUEUE = new LinkedBlockingQueue<>();
+    private final Log LOG = LogFactory.getLog(JSGatewayImpl.class);
+    private final CountDownLatch publishingShutdownLatch = new CountDownLatch(1);
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, JetStreamSubscription> subscribers = new HashMap<>();
+    private volatile BlockingQueue<PublishingQueueTask> publishingQueue = new LinkedBlockingQueue<>();
     private volatile ExecutorService exec = Executors.newSingleThreadExecutor();
+    private volatile Boolean shutdownInitiated = Boolean.FALSE;
 
     // connection variables
     @Value("${nats.url}")
@@ -54,8 +54,8 @@ public class JSGatewayImpl implements Gateway {
     private String metadbPubFailuresFilepath;
 
     private final String PUB_FAILURES_FILE_HEADER = "DATE\tTOPIC\tMESSAGE\n";
-    private static final FileUtil fileUtil = new FileUtilImpl();
-    private static File publishingLoggerFile;
+    private FileUtil fileUtil;
+    private File publishingLoggerFile;
 
     @Override
     public void connect() throws Exception {
@@ -68,7 +68,7 @@ public class JSGatewayImpl implements Gateway {
         this.jsConnection = natsConnection.jetStream();
         publishingLoggerFile = fileUtil.getOrCreateFileWithHeader(
                 metadbPubFailuresFilepath, PUB_FAILURES_FILE_HEADER);
-        exec.execute(NATSPublisher.withDefaultOptions(natsConnection.getOptions()));
+        exec.execute(new NATSPublisher(natsConnection.getOptions()));
     }
 
     @Override
@@ -86,7 +86,7 @@ public class JSGatewayImpl implements Gateway {
             throw new IllegalStateException("Gateway connection has not been established.");
         }
         if (!shutdownInitiated) {
-            PUBLISHING_QUEUE.put(new PublishingQueueTask(subject, message));
+            publishingQueue.put(new PublishingQueueTask(subject, message));
         } else {
             LOG.error("Shutdown initiated, not accepting publish request: \n" + message);
             throw new IllegalStateException("Shutdown initiated, not accepting anymore publish requests");
@@ -115,7 +115,7 @@ public class JSGatewayImpl implements Gateway {
         }
         exec.shutdownNow();
         shutdownInitiated = true;
-        PUBLISHING_SHUTDOWN_LATCH.await();
+        publishingShutdownLatch.await();
         natsConnection.close();
     }
 
@@ -144,7 +144,7 @@ public class JSGatewayImpl implements Gateway {
      * @param subject
      * @param message
      */
-    public static void writeToPublishingLoggerFile(String subject, String message) {
+    public void writeToPublishingLoggerFile(String subject, String message) {
         String currentDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
         StringBuilder builder = new StringBuilder();
         builder.append(currentDate)
@@ -162,19 +162,70 @@ public class JSGatewayImpl implements Gateway {
         }
     }
 
-    public static Boolean shutdownInitiated() {
-        return shutdownInitiated;
+    private class NATSPublisher implements Runnable {
+        Connection natsConn;
+        JetStream jsConn;
+        boolean interrupted;
+
+        /**
+         * NATSPublisher constructor.
+         * @param options
+         * @throws IOException
+         * @throws InterruptedException
+         */
+        public NATSPublisher(Options options) throws IOException, InterruptedException {
+            this.natsConn = Nats.connect(options);
+            this.jsConn = natsConn.jetStream(JetStreamOptions.DEFAULT_JS_OPTIONS);
+            this.interrupted = Boolean.FALSE;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    PublishingQueueTask task = publishingQueue.poll(100, TimeUnit.MILLISECONDS);
+                    if (task != null) {
+                        String msg = mapper.writeValueAsString(task.payload);
+                        try {
+                            PublishAck ack = jsConn.publish(task.subject, msg.getBytes());
+                            if (ack.getError() != null) {
+                                writeToPublishingLoggerFile(task.subject, msg);
+                            }
+                        } catch (Exception e) {
+                            writeToPublishingLoggerFile(task.subject, msg);
+                            if (e instanceof InterruptedException) {
+                                interrupted = Boolean.TRUE;
+                            } else {
+                                LOG.error("Error during attempt to publish on topic: " + task.subject, e);
+                            }
+                        }
+                        if ((interrupted || shutdownInitiated) && publishingQueue.isEmpty()) {
+                            break;
+                        }
+                    }
+                } catch (InterruptedException ex) {
+                    interrupted = Boolean.TRUE;
+                } catch (JsonProcessingException ex) {
+                    LOG.error("Error parsing JSON from message", ex);
+                }
+            }
+            try {
+                // close connection
+                natsConn.close();
+            } catch (InterruptedException ex) {
+                LOG.error("Error during attempt to close NATS connection", ex);
+            }
+            publishingShutdownLatch.countDown();
+        }
     }
 
-    public static void countdownPublishingShutdownLatch() {
-        PUBLISHING_SHUTDOWN_LATCH.countDown();
-    }
+    private class PublishingQueueTask {
+        String subject;
+        Object payload;
 
-    public static PublishingQueueTask pollPublishingQueue() throws InterruptedException {
-        return PUBLISHING_QUEUE.poll(100, TimeUnit.MILLISECONDS);
-    }
-
-    public static Boolean publishingQueueIsEmpty() {
-        return PUBLISHING_QUEUE.isEmpty();
+        public PublishingQueueTask(String subject, Object payload) {
+            this.subject = subject;
+            this.payload = payload;
+        }
     }
 }
